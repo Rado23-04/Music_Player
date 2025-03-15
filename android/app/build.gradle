@@ -79,6 +79,7 @@ android {
 
     namespace "com.musicplayer"
     defaultConfig {
+        minSdkVersion 24
         applicationId "com.musicplayer"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
