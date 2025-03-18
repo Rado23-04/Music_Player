@@ -10,6 +10,7 @@ interface AudioFile {
 const useLocalMusic = () => {
   const [musicFiles, setMusicFiles] = useState<AudioFile[]>([]);
 
+  // Demander la permission d'accès aux fichiers audio
   const requestPermission = async () => {
     if (Platform.OS === "android") {
       const permission =
@@ -17,12 +18,18 @@ const useLocalMusic = () => {
           ? PermissionsAndroid.PERMISSIONS.READ_MEDIA_AUDIO
           : PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE;
 
-      const granted = await PermissionsAndroid.request(permission);
-      return granted === PermissionsAndroid.RESULTS.GRANTED;
+      try {
+        const granted = await PermissionsAndroid.request(permission);
+        return granted === PermissionsAndroid.RESULTS.GRANTED;
+      } catch (error) {
+        console.error("Erreur lors de la demande de permission:", error);
+        return false;
+      }
     }
-    return false; // iOS gère différemment
+    return true; // iOS gère différemment, généralement pas besoin de permission explicite
   };
 
+  // Récupérer les fichiers audio locaux
   const getMusicFiles = async () => {
     const hasPermission = await requestPermission();
     console.log("Permission accordée :", hasPermission);
@@ -32,7 +39,7 @@ const useLocalMusic = () => {
       return;
     }
 
-    // Vérifier le chemin d'accès
+    // Vérifier le chemin d'accès au répertoire musique
     const musicDir = `${RNFS.ExternalStorageDirectoryPath}/Music`;
     console.log("Chemin d'accès au répertoire :", musicDir);
 
@@ -40,13 +47,15 @@ const useLocalMusic = () => {
       const files = await RNFS.readDir(musicDir);
       console.log("Fichiers trouvés :", files);
 
+      // Filtrer les fichiers audio valides
       const audioFiles = files
-        .filter((file) => file.isFile() && file.name.endsWith(".mp3"))
+        .filter((file) => file.isFile() && /\.(mp3|wav|aac|flac)$/i.test(file.name))
         .map((file) => ({
           name: file.name,
           path: file.path,
         }));
 
+      // Mettre à jour le state avec la liste des fichiers audio
       setMusicFiles(audioFiles);
     } catch (error) {
       console.error("Erreur lors de la récupération des fichiers musicaux :", error);
@@ -61,4 +70,3 @@ const useLocalMusic = () => {
 };
 
 export default useLocalMusic;
-//react-native-get-music-files
