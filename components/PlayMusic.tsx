@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import Sound from "react-native-sound";
+import TrackPlayer, { Capability, State, Event } from "react-native-track-player";
 
 interface PlayMusicProps {
   currentMusicPath: string;
   currentMusicInfo: { name: string; artist: string };
   onNext: () => void;
   onPrevious: () => void;
-  onToggleFavorite: () => void; // Nouvelle prop pour gérer les favoris
+  onToggleFavorite: () => void;
 }
 
 const PlayMusic: React.FC<PlayMusicProps> = ({
@@ -15,48 +15,56 @@ const PlayMusic: React.FC<PlayMusicProps> = ({
   currentMusicInfo,
   onNext,
   onPrevious,
-  onToggleFavorite, // Ajout de la prop
+  onToggleFavorite,
 }) => {
-  const [sound, setSound] = useState<Sound | null>(null);
-  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
-    if (currentMusicPath) {
-      if (sound) {
-        sound.stop(() => sound.release());
-      }
-
-      const newSound = new Sound(currentMusicPath, "", (error) => {
-        if (error) {
-          console.error("Erreur lors du chargement du son :", error);
-          return;
-        }
-        newSound.play((success) => {
-          if (!success) console.error("Erreur lors de la lecture du son");
-          newSound.release();
-          setIsPlaying(false);
-        });
+    const setupPlayer = async () => {
+      await TrackPlayer.setupPlayer();
+      await TrackPlayer.updateOptions({
+        capabilities: [
+          Capability.Play,
+          Capability.Pause,
+          Capability.SkipToNext,
+          Capability.SkipToPrevious,
+        ],
+        compactCapabilities: [
+          Capability.Play,
+          Capability.Pause,
+        ],
+        notificationCapabilities: [
+          Capability.Play,
+          Capability.Pause,
+          Capability.SkipToNext,
+          Capability.SkipToPrevious,
+        ],
       });
-
-      setSound(newSound);
+      await TrackPlayer.add({
+        id: currentMusicPath,
+        url: currentMusicPath,
+        title: currentMusicInfo.name,
+        artist: currentMusicInfo.artist,
+      });
+      await TrackPlayer.play();
       setIsPlaying(true);
+    };
 
-      return () => {
-        if (newSound) {
-          newSound.stop(() => newSound.release());
-        }
-      };
-    }
+    setupPlayer();
+
+    return () => {
+      TrackPlayer.reset();
+    };
   }, [currentMusicPath]);
 
-  const togglePlayPause = () => {
-    if (sound) {
-      if (isPlaying) {
-        sound.pause();
-      } else {
-        sound.play();
-      }
-      setIsPlaying(!isPlaying);
+  const togglePlayPause = async () => {
+    const state = await TrackPlayer.getState();
+    if (state === State.Playing) {
+      await TrackPlayer.pause();
+      setIsPlaying(false);
+    } else {
+      await TrackPlayer.play();
+      setIsPlaying(true);
     }
   };
 
@@ -76,7 +84,6 @@ const PlayMusic: React.FC<PlayMusicProps> = ({
         <TouchableOpacity onPress={onNext}>
           <Text style={styles.controlText}>⏭</Text>
         </TouchableOpacity>
-        {/* Bouton pour ajouter/supprimer des favoris */}
         <TouchableOpacity onPress={onToggleFavorite}>
           <Text style={styles.controlText}>❤️</Text>
         </TouchableOpacity>
@@ -102,12 +109,11 @@ const styles = StyleSheet.create({
   },
   currentSongName: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#ffffff',
+    color: '#fff',
   },
   currentArtistName: {
-    fontSize: 14,
-    color: '#bb86fc',
+    fontSize: 16,
+    color: '#bbb',
   },
   controlsButtonsContainer: {
     flexDirection: 'row',
@@ -115,8 +121,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   controlText: {
-    fontSize: 24,
-    color: '#bb86fc',
+    fontSize: 32,
+    color: '#fff',
   },
 });
 

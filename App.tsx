@@ -1,20 +1,13 @@
-import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
-import MusicList from './components/MusicList';
-import FavoritesScreen from './components/FavoriteScreen';
+  import { StyleSheet, Text, View } from 'react-native'
+  import React from 'react'
+  import MusicList from './components/MusicList'
 
-const Stack = createStackNavigator();
+  const App = () => {
+    return (
+      <MusicList/>
+    )
+  }
 
-const App = () => {
-  return (
-    <NavigationContainer>
-      <Stack.Navigator>
-        <Stack.Screen name="MusicList" component={MusicList} />
-        <Stack.Screen name="Favorites" component={FavoritesScreen} />
-      </Stack.Navigator>
-    </NavigationContainer>
-  );
-};
+  export default App
 
-export default App;
+  const styles = StyleSheet.create({})

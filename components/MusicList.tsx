@@ -1,71 +1,128 @@
-import React, { useState } from "react";
-import { View, Text, FlatList, TouchableOpacity, StyleSheet } from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, Modal } from "react-native";
 import useLocalMusic from "../services/getMusic";
 import PlayMusic from "./PlayMusic";
+import { getPlaylists, createPlaylist, addToPlaylist, removeFromPlaylist } from "../services/playlistService";
+
+// Ajouter un type pour gérer les chansons dans la playlist
+interface Song {
+  name: string;
+  path: string;
+}
+
+interface Playlist {
+  name: string;
+  songs: Song[];
+}
 
 const MusicList = () => {
   const musicFiles = useLocalMusic();
-  const [currentMusicIndex, setCurrentMusicIndex] = useState<number | null>(null);
+  const [currentMusicIndex, setCurrentMusicIndex] = useState<number>(0);
   const [currentMusicInfo, setCurrentMusicInfo] = useState<{ name: string; artist: string } | null>(null);
-  const [favorites, setFavorites] = useState<string[]>([]); // Liste des favoris
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [newPlaylistName, setNewPlaylistName] = useState('');
+  const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
+  const [favorites, setFavorites] = useState<string[]>([]); // Ajout de l'état pour les favoris
+
+  useEffect(() => {
+    const loadPlaylists = async () => {
+      const loadedPlaylists = await getPlaylists();
+      setPlaylists(loadedPlaylists);
+    };
+    loadPlaylists();
+  }, []);
 
   const playMusic = (index: number) => {
     setCurrentMusicIndex(index);
     setCurrentMusicInfo({
-      name: musicFiles[index].name,
-      artist: "Artiste inconnu", // Remplacez par l'artiste réel si disponible
+      name: musicFiles[index]?.name || "Titre inconnu",
+      artist: "Artiste inconnu",
     });
   };
 
-  const playNext = () => {
-    if (currentMusicIndex !== null && currentMusicIndex < musicFiles.length - 1) {
-      playMusic(currentMusicIndex + 1);
+  const handleCreatePlaylist = async () => {
+    if (newPlaylistName.trim()) {
+      await createPlaylist(newPlaylistName, []);
+      setNewPlaylistName('');
+      setPlaylists(await getPlaylists());
     }
   };
 
-  const playPrevious = () => {
-    if (currentMusicIndex !== null && currentMusicIndex > 0) {
-      playMusic(currentMusicIndex - 1);
-    }
+  const openPlaylistModal = (playlist: Playlist) => {
+    setSelectedPlaylist(playlist);
   };
 
-  const toggleFavorite = () => {
-    if (currentMusicIndex !== null) {
-      const currentMusicPath = musicFiles[currentMusicIndex].path;
-      if (favorites.includes(currentMusicPath)) {
-        // Supprimer des favoris
-        setFavorites(favorites.filter((path) => path !== currentMusicPath));
-      } else {
-        // Ajouter aux favoris
-        setFavorites([...favorites, currentMusicPath]);
-      }
-    }
+  const closePlaylistModal = () => {
+    setSelectedPlaylist(null);
+  };
+
+  const addSongToPlaylist = async (playlistName: string, song: Song) => {
+    await addToPlaylist(playlistName, song);
+    const loadedPlaylists = await getPlaylists();
+    setPlaylists(loadedPlaylists);
+  };
+
+  const removeSongFromPlaylist = async (playlistName: string, songPath: string) => {
+    await removeFromPlaylist(playlistName, songPath);
+    const loadedPlaylists = await getPlaylists();
+    setPlaylists(loadedPlaylists);
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Fichiers musicaux :</Text>
+      <Text style={styles.title}>Playlists :</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Nom de la playlist"
+        value={newPlaylistName}
+        onChangeText={setNewPlaylistName}
+      />
+      <TouchableOpacity onPress={handleCreatePlaylist}>
+        <Text style={styles.button}>Créer une playlist</Text>
+      </TouchableOpacity>
       <FlatList
-        data={musicFiles}
-        keyExtractor={(item) => item.path}
-        renderItem={({ item, index }) => (
-          <TouchableOpacity style={styles.itemContainer} onPress={() => playMusic(index)}>
-            <View style={styles.textContainer}>
-              <Text style={styles.songName}>{item.name}</Text>
-              <Text style={styles.artistName}>{"Artiste inconnu"}</Text>
-              {favorites.includes(item.path) && <Text style={styles.favoriteIcon}>❤️</Text>}
-            </View>
+        data={playlists}
+        keyExtractor={(item) => item.name}
+        renderItem={({ item }) => (
+          <TouchableOpacity onPress={() => openPlaylistModal(item)}>
+            <Text style={styles.playlistName}>{item.name}</Text>
           </TouchableOpacity>
         )}
       />
-
-      {currentMusicIndex !== null && currentMusicInfo && (
+      {selectedPlaylist && (
+        <Modal visible={true} onRequestClose={closePlaylistModal}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>{selectedPlaylist.name}</Text>
+            <FlatList
+              data={selectedPlaylist.songs}
+              keyExtractor={(song) => song.path}
+              renderItem={({ item }) => (
+                <View style={styles.songItem}>
+                  <Text>{item.name}</Text>
+                  <TouchableOpacity onPress={() => removeSongFromPlaylist(selectedPlaylist.name, item.path)}>
+                    <Text style={styles.removeButton}>Supprimer</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            />
+            <TouchableOpacity onPress={closePlaylistModal}>
+              <Text style={styles.closeButton}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
+        </Modal>
+      )}
+      {currentMusicInfo && (
         <PlayMusic
           currentMusicPath={musicFiles[currentMusicIndex].path}
           currentMusicInfo={currentMusicInfo}
-          onNext={playNext}
-          onPrevious={playPrevious}
-          onToggleFavorite={toggleFavorite} // Passage de la fonction
+          onNext={() => setCurrentMusicIndex((prev) => (prev + 1) % musicFiles.length)}
+          onPrevious={() => setCurrentMusicIndex((prev) => (prev - 1 + musicFiles.length) % musicFiles.length)}
+          onToggleFavorite={() => {
+            const path = musicFiles[currentMusicIndex].path;
+            setFavorites((prevFavorites) =>
+              prevFavorites.includes(path) ? prevFavorites.filter((p) => p !== path) : [...prevFavorites, path]
+            );
+          }}
         />
       )}
     </View>
@@ -84,32 +141,48 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     color: '#bb86fc',
   },
-  itemContainer: {
-    padding: 15,
+  input: {
+    backgroundColor: '#fff',
+    padding: 10,
+    borderRadius: 5,
     marginBottom: 10,
-    backgroundColor: '#2c2c2c',
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
-  textContainer: {
+  button: {
+    backgroundColor: '#bb86fc',
+    padding: 10,
+    borderRadius: 5,
+    textAlign: 'center',
+    color: '#fff',
+  },
+  playlistName: {
+    fontSize: 18,
+    color: '#fff',
+    marginVertical: 10,
+  },
+  modalContainer: {
     flex: 1,
+    padding: 20,
+    backgroundColor: '#2c2c2c',
   },
-  songName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  artistName: {
-    fontSize: 14,
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
     color: '#bb86fc',
+    marginBottom: 20,
   },
-  favoriteIcon: {
-    fontSize: 16,
-    color: '#ff4081',
+  songItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  removeButton: {
+    color: 'red',
+  },
+  closeButton: {
+    color: '#bb86fc',
+    textAlign: 'center',
+    marginTop: 20,
   },
 });
 
