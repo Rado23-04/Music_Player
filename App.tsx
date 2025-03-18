@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native'
 import React from 'react'
-import MusicList from './screen/MusicScreen'
+import MusicList from './components/MusicList'
 
 const App = () => {
   return (
